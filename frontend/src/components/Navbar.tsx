@@ -33,9 +33,12 @@ export const Navbar: React.FC = () => {
           <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-ibm-blue to-ibm-purple p-0.5 shadow-glow-blue flex items-center justify-center">
             <Bot className="w-5 h-5 text-white animate-pulse" />
           </div>
-          <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent group-hover:from-ibm-cyan group-hover:to-ibm-blue transition-all duration-300">
-            CareerPilot <span className="text-ibm-cyan text-xs font-semibold px-1 py-0.5 rounded bg-ibm-cyan/10 border border-ibm-cyan/20">AI</span>
-          </span>
+          <div className="flex flex-col">
+            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent group-hover:from-ibm-cyan group-hover:to-ibm-blue transition-all duration-300 leading-none">
+              CareerPilot <span className="text-ibm-cyan text-[10px] font-semibold px-1 py-0.5 rounded bg-ibm-cyan/10 border border-ibm-cyan/20 align-middle">AI</span>
+            </span>
+            <span className="text-[7px] text-gray-500 font-mono tracking-widest mt-0.5">CREATOR: KUNAL CHAUHAN</span>
+          </div>
         </Link>
 
         {/* Desktop Links */}

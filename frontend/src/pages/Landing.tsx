@@ -164,9 +164,12 @@ export const Landing: React.FC = () => {
           <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-ibm-blue to-ibm-purple p-0.5 shadow-glow-blue flex items-center justify-center">
             <Bot className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-wider text-white">
-            CareerPilot <span className="text-ibm-cyan text-xs px-1 py-0.5 rounded bg-ibm-cyan/10 border border-ibm-cyan/20">AI</span>
-          </span>
+          <div className="flex flex-col">
+            <span className="font-bold text-lg tracking-wider text-white leading-none">
+              CareerPilot <span className="text-ibm-cyan text-xs px-1 py-0.5 rounded bg-ibm-cyan/10 border border-ibm-cyan/20">AI</span>
+            </span>
+            <span className="text-[7px] text-gray-500 font-mono tracking-widest mt-0.5">CREATOR: KUNAL CHAUHAN</span>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <Link to="/login" className="text-sm font-semibold text-gray-300 hover:text-white transition">
@@ -393,7 +396,7 @@ export const Landing: React.FC = () => {
       <footer className="relative z-10 w-full px-6 py-8 border-t border-ibm-border bg-black">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between text-xs text-gray-500 gap-4">
           <div>
-            &copy; {new Date().getFullYear()} CareerPilot AI. Built for IBM Research & Placement Mocks.
+            &copy; {new Date().getFullYear()} CareerPilot AI. Created by Kunal Chauhan. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-white transition">Privacy Policy</a>
