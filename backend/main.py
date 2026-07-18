@@ -7,6 +7,22 @@ from app.routers import auth, resume, skill_gap, roadmap, interview, document, r
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
 
+# Self-healing migration checks for column updates
+from sqlalchemy import inspect, text
+try:
+    inspector = inspect(engine)
+    if inspector.has_table("recommendations"):
+        columns = [col['name'] for col in inspector.get_columns('recommendations')]
+        with engine.begin() as conn:
+            if 'job_description' not in columns:
+                conn.execute(text("ALTER TABLE recommendations ADD COLUMN job_description TEXT"))
+                print("Self-healing DB: Added job_description column to recommendations table.")
+            if 'apply_url' not in columns:
+                conn.execute(text("ALTER TABLE recommendations ADD COLUMN apply_url VARCHAR"))
+                print("Self-healing DB: Added apply_url column to recommendations table.")
+except Exception as e:
+    print(f"Database migration check warning: {e}")
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Enterprise Multi-Agent Career Copilot Platform",
