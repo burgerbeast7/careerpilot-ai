@@ -1,0 +1,28 @@
+# Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Database / Storage
+*.db
+careerpilot.db
+uploads/documents/*.pdf
+uploads/documents/doc_*
+
+# OS files
+.DS_Store
+Thumbs.db
