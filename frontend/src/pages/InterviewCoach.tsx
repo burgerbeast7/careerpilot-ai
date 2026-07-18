@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { 
   MessageSquare, Send, ChevronRight, ChevronLeft, 
-  Award, Loader2 
+  Award, Loader2, Sparkles
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
@@ -44,6 +44,21 @@ interface InterviewItem {
 export const InterviewCoach: React.FC = () => {
   const [sessionType, setSessionType] = useState('Technical');
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
+  const [targetJob, setTargetJob] = useState<any>(null);
+
+  useEffect(() => {
+    const jobStr = localStorage.getItem('target_job');
+    if (jobStr) {
+      try {
+        setTargetJob(JSON.parse(jobStr));
+      } catch {}
+    }
+  }, []);
+
+  const handleClearAlignment = () => {
+    localStorage.removeItem('target_job');
+    setTargetJob(null);
+  };
   const [userAnswer, setUserAnswer] = useState('');
   
   // Streaming state
@@ -95,7 +110,8 @@ export const InterviewCoach: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          session_type: sessionType
+          session_type: sessionType,
+          recommendation_id: targetJob ? targetJob.id : undefined
         })
       });
 
@@ -207,12 +223,33 @@ export const InterviewCoach: React.FC = () => {
         {/* Header */}
         <div className="border-b border-ibm-border pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Interview Coach</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight">Mock Interview Room</h1>
             <p className="text-xs text-gray-400 mt-1">
-              Conduct challenging mock interviews tailored to your target company and receive instant STAR critiques.
+              Practice technical coding and behavioral problem-solving. View grading benchmarks parsed live using the STAR framework criteria.
             </p>
           </div>
         </div>
+
+        {/* Job Alignment Banner */}
+        {targetJob && (
+          <div className="p-4 rounded-xl border border-ibm-purple/30 bg-ibm-purple/10 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-ibm-purple flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-ibm-cyan animate-pulse" />
+                Target Job Alignment
+              </span>
+              <p className="text-xs text-gray-300 font-bold">
+                Tailoring session for <span className="text-white">{targetJob.job_title}</span> at <span className="text-ibm-cyan">{targetJob.company}</span>
+              </p>
+            </div>
+            <button
+              onClick={handleClearAlignment}
+              className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition"
+            >
+              Reset to General Practice
+            </button>
+          </div>
+        )}
 
         {/* Dynamic visualizer showing agent execution in progress */}
         {(isAnalyzing || logs.length > 0) && (

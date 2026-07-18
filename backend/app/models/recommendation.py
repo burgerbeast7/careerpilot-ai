@@ -14,6 +14,8 @@ class Recommendation(Base):
     match_explanation = Column(Text, nullable=True)
     required_skills = Column(JSON, nullable=True)
     status = Column(String, default="Recommended")  # Recommended, Applied, Interviewing, Offered, Rejected
+    job_description = Column(Text, nullable=True)
+    apply_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships

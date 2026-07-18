@@ -1,9 +1,10 @@
 import React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Compass, ChevronRight, ChevronLeft, 
-  Target, Loader2, Sparkles
+  Target, Loader2, Sparkles, ExternalLink, GraduationCap, FileText as FileSignature
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -15,6 +16,8 @@ interface JobRecommendation {
   match_explanation: string;
   required_skills: string[];
   status: string; // "Recommended" | "Applied" | "Interviewing" | "Offered" | "Rejected"
+  job_description?: string;
+  apply_url?: string;
 }
 
 const COLUMNS = [
@@ -26,6 +29,13 @@ const COLUMNS = [
 ];
 
 export const Recommendations: React.FC = () => {
+  const navigate = useNavigate();
+
+  const handleAction = (job: any, route: string) => {
+    localStorage.setItem('target_job', JSON.stringify(job));
+    navigate(route);
+  };
+
   // Query recommendations
   const { data: jobList = [], refetch: refetchJobs, isLoading } = useQuery<JobRecommendation[]>({
     queryKey: ['job-recommendations'],
@@ -175,6 +185,44 @@ export const Recommendations: React.FC = () => {
                                 {s}
                               </span>
                             ))}
+                          </div>
+
+                          {/* Apply & Prep Actions */}
+                          <div className="flex flex-col gap-1.5 pt-1.5 border-t border-white/[0.03]">
+                            {job.apply_url && (
+                              <a
+                                href={job.apply_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="w-full py-1 text-center bg-ibm-blue/15 hover:bg-ibm-blue/30 border border-ibm-blue/30 rounded text-[9px] font-bold text-ibm-cyan flex items-center justify-center gap-1 transition"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />
+                                Apply on Job Portal
+                              </a>
+                            )}
+                            <div className="grid grid-cols-2 gap-1">
+                              <button
+                                onClick={() => handleAction(job, '/interview-coach')}
+                                className="py-1 bg-white/5 hover:bg-ibm-purple/15 border border-white/[0.04] hover:border-ibm-purple/30 rounded text-[8px] font-bold text-gray-300 hover:text-purple-300 flex items-center justify-center gap-1 transition"
+                              >
+                                <Target className="w-2.5 h-2.5" />
+                                Prep Mocks
+                              </button>
+                              <button
+                                onClick={() => handleAction(job, '/roadmap')}
+                                className="py-1 bg-white/5 hover:bg-amber-500/15 border border-white/[0.04] hover:border-amber-500/30 rounded text-[8px] font-bold text-gray-300 hover:text-amber-300 flex items-center justify-center gap-1 transition"
+                              >
+                                <GraduationCap className="w-2.5 h-2.5" />
+                                Syllabus
+                              </button>
+                            </div>
+                            <button
+                              onClick={() => handleAction(job, '/doc-generator')}
+                              className="w-full py-1 bg-white/5 hover:bg-pink-500/15 border border-white/[0.04] hover:border-pink-500/30 rounded text-[8px] font-bold text-gray-300 hover:text-pink-300 flex items-center justify-center gap-1 transition"
+                            >
+                              <FileSignature className="w-2.5 h-2.5" />
+                              Tailor Resume/Letter
+                            </button>
                           </div>
 
                           {/* Control arrows to move status columns */}

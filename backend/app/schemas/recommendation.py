@@ -14,6 +14,8 @@ class RecommendationResponse(BaseModel):
     match_explanation: Optional[str] = None
     required_skills: Optional[List[str]] = None
     status: str
+    job_description: Optional[str] = None
+    apply_url: Optional[str] = None
     created_at: datetime
 
     class Config:

@@ -4,6 +4,7 @@ from datetime import datetime
 
 class InterviewStartRequest(BaseModel):
     session_type: str  # "Technical", "Behavioral", "Coding", "General"
+    recommendation_id: Optional[int] = None
 
 class InterviewAnswerRequest(BaseModel):
     question_index: int

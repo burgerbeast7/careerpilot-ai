@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { 
   Briefcase, FileText, ChevronRight, Download, 
-  Copy, ClipboardCheck, Plus, Loader2
+  Copy, ClipboardCheck, Plus, Loader2, Sparkles
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -22,6 +22,26 @@ export const DocGenerator: React.FC = () => {
   const [context, setContext] = useState('');
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [copied, setCopied] = useState(false);
+  const [targetJob, setTargetJob] = useState<any>(null);
+
+  useEffect(() => {
+    const jobStr = localStorage.getItem('target_job');
+    if (jobStr) {
+      try {
+        const job = JSON.parse(jobStr);
+        setTargetJob(job);
+        setTitle(`Cover Letter - ${job.job_title} - ${job.company}`);
+        setContext(job.job_description || `Required Skills: ${job.required_skills.join(', ')}`);
+      } catch {}
+    }
+  }, []);
+
+  const handleClearAlignment = () => {
+    localStorage.removeItem('target_job');
+    setTargetJob(null);
+    setTitle('');
+    setContext('');
+  };
 
   // Load history list
   const { data: documentList = [], refetch: refetchDocuments, isLoading } = useQuery<DocumentItem[]>({
@@ -90,6 +110,27 @@ export const DocGenerator: React.FC = () => {
             Formulate resumes, cover letters, and outreach templates tailored to target placement criteria and download print-ready PDFs.
           </p>
         </div>
+
+        {/* Job Alignment Banner */}
+        {targetJob && (
+          <div className="p-4 rounded-xl border border-ibm-purple/30 bg-ibm-purple/10 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-ibm-purple flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-ibm-cyan animate-pulse" />
+                Target Job Alignment
+              </span>
+              <p className="text-xs text-gray-300 font-bold">
+                Tailoring document files for <span className="text-white">{targetJob.job_title}</span> at <span className="text-ibm-cyan">{targetJob.company}</span>
+              </p>
+            </div>
+            <button
+              onClick={handleClearAlignment}
+              className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition"
+            >
+              Reset to General Template
+            </button>
+          </div>
+        )}
 
         {/* Workspace split grid */}
         <div className="grid lg:grid-cols-12 gap-8 items-start">

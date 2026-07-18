@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Map, Calendar, CheckSquare, Square, Trophy, 
-  Star, Loader2 
+  Star, Loader2, Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import api from '../services/api';
@@ -33,6 +33,21 @@ interface RoadmapItem {
 export const Roadmap: React.FC = () => {
   const [durationWeeks, setDurationWeeks] = useState('4');
   const [activeWeek, setActiveWeek] = useState(1);
+  const [targetJob, setTargetJob] = useState<any>(null);
+
+  useEffect(() => {
+    const jobStr = localStorage.getItem('target_job');
+    if (jobStr) {
+      try {
+        setTargetJob(JSON.parse(jobStr));
+      } catch {}
+    }
+  }, []);
+
+  const handleClearAlignment = () => {
+    localStorage.removeItem('target_job');
+    setTargetJob(null);
+  };
   
   // Streaming state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -77,7 +92,8 @@ export const Roadmap: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          duration_weeks: durationWeeks
+          duration_weeks: durationWeeks,
+          recommendation_id: targetJob ? targetJob.id : undefined
         })
       });
 
@@ -195,6 +211,27 @@ export const Roadmap: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Job Alignment Banner */}
+        {targetJob && (
+          <div className="p-4 rounded-xl border border-ibm-purple/30 bg-ibm-purple/10 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-ibm-purple flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-ibm-cyan animate-pulse" />
+                Target Job Alignment
+              </span>
+              <p className="text-xs text-gray-300 font-bold">
+                Aligning study plan with required skills for <span className="text-white">{targetJob.job_title}</span> at <span className="text-ibm-cyan">{targetJob.company}</span>
+              </p>
+            </div>
+            <button
+              onClick={handleClearAlignment}
+              className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white transition"
+            >
+              Reset to General Practice
+            </button>
+          </div>
+        )}
 
         {/* Dynamic visualizer showing agent execution in progress */}
         {(isAnalyzing || logs.length > 0) && (

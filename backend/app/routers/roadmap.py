@@ -8,6 +8,7 @@ from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.roadmap import Roadmap
 from app.models.skill_gap import SkillGap
+from app.models.recommendation import Recommendation
 from app.schemas.roadmap import RoadmapRequest, TaskUpdate, RoadmapResponse
 
 router = APIRouter(prefix="/roadmap", tags=["roadmap"])
@@ -22,18 +23,34 @@ async def generate_roadmap(
     Triggers the Roadmap Generator agent stream. Analyzes the latest skill gaps
     and generates a week-by-week study checklist, committing it to PostgreSQL.
     """
-    # 1. Grab latest skill gap details
-    latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user.id).order_by(SkillGap.analyzed_at.desc()).first()
-    
+    # 1. Grab job details or latest skill gap details
     missing_list = []
-    if latest_gap:
-        try:
-            m_skills = json.loads(latest_gap.missing_skills) if isinstance(latest_gap.missing_skills, str) else latest_gap.missing_skills
-            if m_skills:
-                missing_list = list(m_skills.keys())
-        except Exception:
-            pass
-            
+    target_role = current_user.target_role or "Software Engineer"
+    
+    if request_in.recommendation_id:
+        rec = db.query(Recommendation).filter(
+            Recommendation.id == request_in.recommendation_id, 
+            Recommendation.user_id == current_user.id
+        ).first()
+        if rec:
+            target_role = rec.job_title
+            try:
+                req_skills = json.loads(rec.required_skills) if isinstance(rec.required_skills, str) else rec.required_skills
+                if req_skills:
+                    missing_list = list(req_skills)
+            except Exception:
+                pass
+                
+    if not missing_list:
+        latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user.id).order_by(SkillGap.analyzed_at.desc()).first()
+        if latest_gap:
+            try:
+                m_skills = json.loads(latest_gap.missing_skills) if isinstance(latest_gap.missing_skills, str) else latest_gap.missing_skills
+                if m_skills:
+                    missing_list = list(m_skills.keys())
+            except Exception:
+                pass
+                
     if not missing_list:
         missing_list = ["Docker & Kubernetes", "PostgreSQL Databases", "FastAPI Core REST APIs", "Pytest & CI/CD Pipelines"]
 
@@ -42,7 +59,7 @@ async def generate_roadmap(
         async for message in CareerAgents.run_orchestrator("roadmap_generation", {
             "duration_weeks": request_in.duration_weeks,
             "missing_skills": missing_list,
-            "target_role": current_user.target_role or "Software Engineer"
+            "target_role": target_role
         }):
             if "complete" in message:
                 clean_msg = message.replace("data: ", "").strip()

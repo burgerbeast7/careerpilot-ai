@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.interview import Interview
+from app.models.recommendation import Recommendation
 from app.schemas.interview import InterviewStartRequest, InterviewAnswerRequest
 from app.services.agents import CareerAgents
 from app.services.ai_factory import AIFactory
@@ -23,11 +24,27 @@ async def start_interview(
     Spawns an Interview Coach Agent stream. Generates questions and saves
     the active session in PostgreSQL on stream completion.
     """
+    target_role = current_user.target_role or "Software Engineer"
+    target_company = current_user.target_company or "IBM"
+    job_desc = ""
+
+    if request_in.recommendation_id:
+        rec = db.query(Recommendation).filter(
+            Recommendation.id == request_in.recommendation_id, 
+            Recommendation.user_id == current_user.id
+        ).first()
+        if rec:
+            target_role = rec.job_title
+            target_company = rec.company
+            job_desc = rec.job_description or ""
+
     # Custom SSE generator to update the DB on pipeline completion
     async def sse_generator():
         async for message in CareerAgents.run_orchestrator("interview_coach", {
             "session_type": request_in.session_type,
-            "target_role": current_user.target_role or "Software Engineer"
+            "target_role": target_role,
+            "target_company": target_company,
+            "job_description": job_desc
         }):
             if "complete" in message:
                 clean_msg = message.replace("data: ", "").strip()

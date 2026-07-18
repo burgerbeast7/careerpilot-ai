@@ -4,6 +4,7 @@ from datetime import datetime
 
 class RoadmapRequest(BaseModel):
     duration_weeks: str  # "4", "8", or "12"
+    recommendation_id: Optional[int] = None
 
 class TaskUpdate(BaseModel):
     week_index: int

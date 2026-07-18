@@ -185,6 +185,8 @@ class CareerAgents:
         elif task_name == "interview_coach":
             session_type = payload.get("session_type", "Technical")
             target_role = payload.get("target_role", "Software Engineer")
+            target_company = payload.get("target_company", "IBM")
+            job_desc = payload.get("job_description", "")
 
             # 1. Dispatch Interview Agent
             yield f"data: {json.dumps({'event': 'active', 'agent': 'interview', 'message': 'Dispatching Interview Coach Agent to select questions...', 'type': 'info'})}\n\n"
@@ -192,14 +194,29 @@ class CareerAgents:
             yield f"data: {json.dumps({'event': 'thought', 'agent': 'interview', 'message': f'Generating challenging {session_type} mock questions for target role: {target_role}...', 'type': 'thought'})}\n\n"
             await asyncio.sleep(1.5)
 
-            interview_prompt = f"""
-            Generate 3 challenging interview questions for role '{target_role}'. Session Type: '{session_type}'.
-            Return output strictly as a JSON list matching this schema:
-            [
-              {{"id": 1, "type": "Technical", "question": "Question text 1"}},
-              {{"id": 2, "type": "Behavioral", "question": "Question text 2"}}
-            ]
-            """
+            if job_desc:
+                interview_prompt = f"""
+                Generate 3 challenging interview questions specifically tailored to the following role and job description:
+                Role: {target_role} at {target_company}
+                Job Description: {job_desc}
+                
+                Session Type: '{session_type}'
+                
+                Return output strictly as a JSON list matching this schema:
+                [
+                  {{"id": 1, "type": "{session_type}", "question": "Question text 1"}},
+                  {{"id": 2, "type": "Behavioral", "question": "Question text 2"}}
+                ]
+                """
+            else:
+                interview_prompt = f"""
+                Generate 3 challenging interview questions for role '{target_role}'. Session Type: '{session_type}'.
+                Return output strictly as a JSON list matching this schema:
+                [
+                  {{"id": 1, "type": "{session_type}", "question": "Question text 1"}},
+                  {{"id": 2, "type": "Behavioral", "question": "Question text 2"}}
+                ]
+                """
             raw_questions = await AIFactory.generate_text(interview_prompt, "You are an Interview Coaching Agent. Output JSON list only.")
             try:
                 questions_data = json.loads(raw_questions)
