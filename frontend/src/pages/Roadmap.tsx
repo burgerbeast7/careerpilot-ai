@@ -115,9 +115,15 @@ export const Roadmap: React.FC = () => {
               setStatusText(payload.message);
 
               if (payload.event === 'complete') {
-                setCurrentResult(payload.result);
                 setIsAnalyzing(false);
-                refetchLatest();
+                refetchLatest().then((res) => {
+                  if (res.data) {
+                    setCurrentResult(res.data);
+                    if (res.data.tasks_data && res.data.tasks_data.length > 0) {
+                      setActiveWeek(res.data.tasks_data[0].week);
+                    }
+                  }
+                });
                 // Trigger celebratory confetti upon generation
                 confetti({
                   particleCount: 80,

@@ -133,9 +133,12 @@ export const InterviewCoach: React.FC = () => {
               setStatusText(payload.message);
 
               if (payload.event === 'complete') {
-                setCurrentResult(payload.result);
                 setIsAnalyzing(false);
-                refetchLatest();
+                refetchLatest().then((res) => {
+                  if (res.data) {
+                    setCurrentResult(res.data);
+                  }
+                });
                 setActiveQuestionIdx(0);
               }
             } catch (err) {
