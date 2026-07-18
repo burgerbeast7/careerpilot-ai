@@ -35,8 +35,9 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 @router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
+    email_lower = user_in.email.strip().lower()
     # Check if user already exists
-    user = db.query(User).filter(User.email == user_in.email).first()
+    user = db.query(User).filter(User.email == email_lower).first()
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -45,7 +46,7 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     
     # Create new user
     db_user = User(
-        email=user_in.email,
+        email=email_lower,
         hashed_password=get_password_hash(user_in.password),
         full_name=user_in.full_name,
         target_role=user_in.target_role,
@@ -73,7 +74,8 @@ class LoginRequest(BaseModel):
 
 @router.post("/login", response_model=Token)
 def login(login_in: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login_in.email).first()
+    email_lower = login_in.email.strip().lower()
+    user = db.query(User).filter(User.email == email_lower).first()
     if not user or not verify_password(login_in.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

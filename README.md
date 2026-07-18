@@ -194,6 +194,45 @@ npm run dev
 
 ---
 
+## 🌐 Production Deployment Architecture
+
+This diagram illustrates the cloud topology when migrating CareerPilot AI from the local environment to enterprise-grade serverless hosts:
+
+```
+                 Internet
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+   Frontend (Vercel)            Backend (Render)
+        │                             │
+        └──────────────┬──────────────┘
+                       │
+              PostgreSQL Database
+                (Neon or Supabase)
+                       │
+                 FAISS / Local Storage
+                       │
+                OpenAI / Gemini /
+              IBM watsonx.ai APIs
+```
+
+### 1. Frontend (Vercel Hosting)
+* **Build Configuration**: Set build directory to `frontend/dist` and build command to `npm run build`.
+* **Environment Configuration**: Set `VITE_API_URL` to point to your backend API gateway on Render (e.g., `https://careerpilot-backend.onrender.com/api/v1`).
+
+### 2. Backend (Render Hosting)
+* **Build Command**: `pip install -r requirements.txt` (Ensure the `psycopg2-binary` package is registered in `requirements.txt` to enable PostgreSQL drivers).
+* **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT` (Start from the `/backend` working directory).
+* **Environment Variables**:
+  * `DATABASE_URL`: Your PostgreSQL connection string from Neon or Supabase (e.g., `postgresql://user:pass@ep-flat-water-12345.us-east-2.aws.neon.tech/neondb?sslmode=require`).
+  * `SECRET_KEY`: Random 64-character JWT secret.
+  * `AI_PROVIDER`: Choose your active API provider (`gemini`, `openai`, `watsonx`, or `mock` for local heuristic execution).
+
+### 3. PostgreSQL Database (Neon or Supabase)
+* Fully relational cloud storage setup. The backend FastAPI application automatically auto-generates tables and configures relational models on server launch.
+
+---
+
 ## 📝 Creator Credentials & Copyright
 
 * **Creator**: Kunal Chauhan
