@@ -6,11 +6,17 @@ from app.core.config import settings
 from urllib.parse import quote_plus, unquote
 
 def get_safe_db_url(url: str) -> str:
-    if not url or url.startswith("sqlite"):
+    if not url:
         return url
         
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
+    # Strip whitespace and any quotes
+    url = str(url).strip().strip("'").strip('"')
+    
+    if url.startswith("sqlite"):
+        return url
+        
+    if "postgres://" in url:
+        url = url.replace("postgres://", "postgresql://")
         
     try:
         if "@" in url:
