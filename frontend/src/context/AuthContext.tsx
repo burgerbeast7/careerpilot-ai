@@ -35,17 +35,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedUser = localStorage.getItem('user');
 
       if (storedToken && storedUser) {
+        // Restore cached session immediately so the UI never flickers
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+
+        // Verify token against backend (non-blocking)
         try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-          
-          // Verify token against backend
           const response = await api.get('/auth/me');
           setUser(response.data);
           localStorage.setItem('user', JSON.stringify(response.data));
-        } catch (error) {
-          console.error('Failed to verify token', error);
-          logout();
+        } catch (error: any) {
+          // Only logout if the backend explicitly rejected the token (401/403).
+          // Network errors (backend unreachable) should NOT clear the session.
+          const status = error?.response?.status;
+          if (status === 401 || status === 403) {
+            console.error('Token rejected by server, logging out.');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setToken(null);
+            setUser(null);
+          } else {
+            console.warn('Could not verify token (backend may be offline). Keeping cached session.');
+          }
         }
       }
       setIsLoading(false);
@@ -55,7 +66,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
+    // NOTE: Do NOT set isLoading here. The ProtectedRoute checks isLoading
+    // and would show a blank/loading state during the navigate() transition,
+    // causing a "black screen" flicker.
     try {
       const response = await api.post('/auth/login', { email, password });
       const { access_token, user: userData } = response.data;
@@ -66,10 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(access_token);
       setUser(userData);
     } catch (error) {
-      logout();
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -81,7 +91,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     targetCompany?: string,
     experienceLevel?: string
   ) => {
-    setIsLoading(true);
     try {
       const response = await api.post('/auth/signup', {
         full_name: fullName,
@@ -99,10 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(access_token);
       setUser(userData);
     } catch (error) {
-      logout();
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
