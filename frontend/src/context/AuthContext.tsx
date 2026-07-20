@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (fullName: string, email: string, password: string, targetRole?: string, targetCompany?: string, experienceLevel?: string) => Promise<void>;
+  loginWithGoogle: (credential?: string, email?: string, name?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User> & { password?: string }) => Promise<void>;
 }
@@ -112,6 +113,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithGoogle = async (credential?: string, email?: string, name?: string) => {
+    try {
+      const response = await api.post('/auth/google', { credential, email, name });
+      const { access_token, user: userData } = response.data;
+      
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      setToken(access_token);
+      setUser(userData);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -139,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isLoading,
     login,
     signup,
+    loginWithGoogle,
     logout,
     updateProfile,
   };

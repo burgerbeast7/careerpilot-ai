@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bot, Mail, ArrowLeft, Send, CheckCircle } from 'lucide-react';
+import api from '../services/api';
 
 export const ForgotPassword: React.FC = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [isSent, setIsSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
     setIsSubmitting(true);
-    setTimeout(() => {
+    setError(null);
+    try {
+      await api.post('/auth/forgot-password', { email });
       setIsSent(true);
+      setTimeout(() => {
+        navigate(`/reset-password?email=${encodeURIComponent(email)}`);
+      }, 2500);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'An error occurred. Please try again.');
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -37,6 +47,12 @@ export const ForgotPassword: React.FC = () => {
             <h2 className="text-xl font-bold text-white tracking-wide">Recover Password</h2>
             <p className="text-xs text-gray-400 mt-1 text-center">Enter your email and we'll send recovery links</p>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+              {error}
+            </div>
+          )}
 
           {isSent ? (
             <div className="text-center space-y-4 py-4">

@@ -41,7 +41,7 @@ flowchart TD
     end
 
     subgraph Database [Storage Layer]
-        SQLite[(careerpilot.db / SQLite)]
+        MongoDB[(MongoDB Atlas / Local MongoDB)]
     end
 
     subgraph LLM_Providers [Inference APIs]
@@ -59,7 +59,7 @@ flowchart TD
     Router -->|Build PDFs| PDFGen
     Orchestrator -->|Request Generation| AIFactory
     AIFactory -->|Choose Provider| LLM_Providers
-    Router -->|Commit Data| SQLite
+    Router -->|Commit Data| MongoDB
 ```
 
 ---
@@ -180,17 +180,7 @@ python -m venv venv
 pip install -r requirements.txt
 python main.py
 ```
-*Note*: The API will start on `http://localhost:8000`. By default, it initializes a local SQLite database (`careerpilot.db`) and uses the mock engine, so you can test all features offline and free of cost.
-
-### 2. Frontend Application
-Open a new console window, navigate to the `frontend` folder, install dependencies, and launch Vite:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-*Note*: The Vite app will open at [http://localhost:5173](http://localhost:5173).
+*Note*: The API will start on `http://localhost:8000`. By default, it initializes a local MongoDB instance for persistent storage.
 
 ---
 
@@ -207,29 +197,30 @@ This diagram illustrates the cloud topology when migrating CareerPilot AI from t
         │                             │
         └──────────────┬──────────────┘
                        │
-              PostgreSQL Database
-                (Neon or Supabase)
+               MongoDB Atlas Database
                        │
                  FAISS / Local Storage
                        │
-                OpenAI / Gemini /
-              IBM watsonx.ai APIs
+                 OpenAI / Gemini /
+               IBM watsonx.ai APIs
 ```
 
 ### 1. Frontend (Vercel Hosting)
 * **Build Configuration**: Set build directory to `frontend/dist` and build command to `npm run build`.
 * **Environment Configuration**: Set `VITE_API_URL` to point to your backend API gateway on Render (e.g., `https://careerpilot-backend.onrender.com/api/v1`).
+* **Optional SSO Setup**: Set `VITE_GOOGLE_CLIENT_ID` to support real Google Single Sign-In authentication.
 
 ### 2. Backend (Render Hosting)
-* **Build Command**: `pip install -r requirements.txt` (Ensure the `psycopg2-binary` package is registered in `requirements.txt` to enable PostgreSQL drivers).
+* **Build Command**: `pip install --upgrade pip && pip install -r requirements.txt` (Installs all dependencies including `pymongo`).
 * **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT` (Start from the `/backend` working directory).
 * **Environment Variables**:
-  * `DATABASE_URL`: Your PostgreSQL connection string from Neon or Supabase (e.g., `postgresql://user:pass@ep-flat-water-12345.us-east-2.aws.neon.tech/neondb?sslmode=require`).
+  * `MONGODB_URI`: Your MongoDB connection string (e.g., `mongodb+srv://user:pass@cluster.mongodb.net/?appName=Cluster0`).
+  * `MONGODB_DB_NAME`: Your database name (default: `careerpilot`).
   * `SECRET_KEY`: Random 64-character JWT secret.
   * `AI_PROVIDER`: Choose your active API provider (`gemini`, `openai`, `watsonx`, or `mock` for local heuristic execution).
 
-### 3. PostgreSQL Database (Neon or Supabase)
-* Fully relational cloud storage setup. The backend FastAPI application automatically auto-generates tables and configures relational models on server launch.
+### 3. MongoDB Database (MongoDB Atlas)
+* Fully document-based cloud storage setup. The backend FastAPI application automatically handles indexes and formats collection fields on startup.
 
 ---
 
