@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import json
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.interview import Interview
@@ -65,20 +65,21 @@ async def start_interview(
                                 "score": 0.0
                             })
                         
-                        # Create and save Interview record
-                        db_interview = Interview(
-                            user_id=current_user.id,
-                            session_type=request_in.session_type,
-                            question_answers=json.dumps(qa_list),
-                            overall_score=0.0,
-                            performance_metrics=json.dumps({
-                                "accuracy": 0.0,
-                                "confidence": 0.0,
-                                "communication": 0.0
-                            })
-                        )
-                        db.add(db_interview)
-                        db.commit()
+                        # Create and save Interview record using a thread-local background session
+                        with SessionLocal() as session:
+                            db_interview = Interview(
+                                user_id=current_user.id,
+                                session_type=request_in.session_type,
+                                question_answers=json.dumps(qa_list),
+                                overall_score=0.0,
+                                performance_metrics=json.dumps({
+                                    "accuracy": 0.0,
+                                    "confidence": 0.0,
+                                    "communication": 0.0
+                                })
+                            )
+                            session.add(db_interview)
+                            session.commit()
                 except Exception as e:
                     print(f"Error creating interview: {e}")
             yield message

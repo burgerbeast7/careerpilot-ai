@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import json
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.roadmap import Roadmap
@@ -68,16 +68,17 @@ async def generate_roadmap(
                     if payload.get("event") == "complete":
                         result = payload.get("result", {})
                         
-                        # Create and save Roadmap DB entry
-                        db_roadmap = Roadmap(
-                            user_id=current_user.id,
-                            duration_weeks=request_in.duration_weeks,
-                            weekly_goals=json.dumps(result.get("weekly_goals", [])),
-                            tasks_data=json.dumps(result.get("tasks_data", [])),
-                            progress_percentage=0.0
-                        )
-                        db.add(db_roadmap)
-                        db.commit()
+                        # Create and save Roadmap DB entry using a thread-local background session
+                        with SessionLocal() as session:
+                            db_roadmap = Roadmap(
+                                user_id=current_user.id,
+                                duration_weeks=request_in.duration_weeks,
+                                weekly_goals=json.dumps(result.get("weekly_goals", [])),
+                                tasks_data=json.dumps(result.get("tasks_data", [])),
+                                progress_percentage=0.0
+                            )
+                            session.add(db_roadmap)
+                            session.commit()
                 except Exception as e:
                     print(f"Error saving roadmap: {e}")
             yield message
