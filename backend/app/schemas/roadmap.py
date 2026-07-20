@@ -12,8 +12,8 @@ class TaskUpdate(BaseModel):
     completed: bool
 
 class RoadmapResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     duration_weeks: str
     weekly_goals: Optional[List[str]] = None
     tasks_data: Optional[List[Dict[str, Any]]] = None

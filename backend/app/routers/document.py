@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from bson import ObjectId
+from app.core.database import get_mongo_db
 import os
 import json
 
@@ -76,8 +78,8 @@ def build_pdf_file(text: str, filepath: str, title: str):
 @router.post("/generate", response_model=DocumentResponse)
 async def generate_document(
     request_in: DocumentCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Triggers the Doc Generator Agent to create a cover letter, tailored resume text,
@@ -86,9 +88,9 @@ async def generate_document(
     # 1. Ask AI to generate tailored text content
     prompt = f"""
     Build a tailored {request_in.doc_type} titled '{request_in.title}'.
-    Target Role: {current_user.target_role or "Software Engineer"}
-    Target Company: {current_user.target_company or "IBM"}
-    User Name: {current_user.full_name}
+    Target Role: {current_user.get("target_role") or "Software Engineer"}
+    Target Company: {current_user.get("target_company") or "IBM"}
+    User Name: {current_user.get("full_name")}
     
     Write the body contents clearly and professionally.
     Content details:
@@ -98,7 +100,7 @@ async def generate_document(
     raw_doc = await AIFactory.generate_text(prompt, "You are a professional Resume and Cover Letter writer Agent.")
     
     # 2. Build local PDF path
-    filename = f"doc_{current_user.id}_{int(os.urandom(4).hex(), 16)}.pdf"
+    filename = f"doc_{current_user["id"]}_{int(os.urandom(4).hex(), 16)}.pdf"
     pdf_dir = os.path.join(os.getcwd(), "uploads", "documents")
     pdf_path = os.path.join(pdf_dir, filename)
     
@@ -111,50 +113,54 @@ async def generate_document(
         relative_pdf_path = None
 
     # 3. Create document record
-    db_doc = Document(
-        user_id=current_user.id,
-        doc_type=request_in.doc_type,
-        title=request_in.title,
-        content_text=raw_doc,
-        pdf_path=relative_pdf_path
-    )
+    db_doc = {
+        "user_id": current_user["id"],
+        "doc_type": request_in.doc_type,
+        "title": request_in.title,
+        "content_text": raw_doc,
+        "pdf_path": relative_pdf_path,
+        "created_at": datetime.now(timezone.utc)
+    }
     
-    db.add(db_doc)
-    db.commit()
-    db.refresh(db_doc)
-    
+    res = db.documents.insert_one(db_doc)
+    db_doc["_id"] = res.inserted_id
+    db_doc["id"] = str(db_doc["_id"])
     return db_doc
 
 @router.get("/list", response_model=list[DocumentResponse])
 def list_documents(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Lists all documents generated for the user.
     """
-    docs = db.query(Document).filter(Document.user_id == current_user.id).order_by(Document.created_at.desc()).all()
+    docs = list(db.documents.find({"user_id": current_user["id"]}).sort("created_at", -1))
+    for d in docs:
+        d["id"] = str(d["_id"])
     return docs
 
 @router.get("/download/{doc_id}")
 def download_pdf(
-    doc_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    doc_id: str,
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Serves the compiled PDF document file download.
     """
-    doc_entry = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
-    if not doc_entry or not doc_entry.pdf_path:
+    try: _id = ObjectId(doc_id)
+    except: _id = doc_id
+    doc_entry = db.documents.find_one({"_id": _id, "user_id": current_user["id"]})
+    if not doc_entry or not doc_entry.get("pdf_path"):
         raise HTTPException(status_code=404, detail="PDF file not found or not compiled.")
         
-    full_path = os.path.join(os.getcwd(), doc_entry.pdf_path)
+    full_path = os.path.join(os.getcwd(), doc_entry["pdf_path"])
     if not os.path.exists(full_path):
          raise HTTPException(status_code=404, detail="Compiled PDF file does not exist on disk.")
          
     return FileResponse(
         path=full_path,
-        filename=f"{doc_entry.title.replace(' ', '_')}.pdf",
+        filename=f"{doc_entry['title'].replace(' ', '_')}.pdf",
         media_type="application/pdf"
     )

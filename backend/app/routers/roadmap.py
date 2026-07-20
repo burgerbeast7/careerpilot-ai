@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from bson import ObjectId
+from app.core.database import get_mongo_db
 import json
 
-from app.core.database import get_db, SessionLocal
+from app.core.database import get_db, get_mongo_db
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.roadmap import Roadmap
@@ -16,8 +18,8 @@ router = APIRouter(prefix="/roadmap", tags=["roadmap"])
 @router.post("/generate")
 async def generate_roadmap(
     request_in: RoadmapRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Triggers the Roadmap Generator agent stream. Analyzes the latest skill gaps
@@ -25,12 +27,12 @@ async def generate_roadmap(
     """
     # 1. Grab job details or latest skill gap details
     missing_list = []
-    target_role = current_user.target_role or "Software Engineer"
+    target_role = current_user.get("target_role") or "Software Engineer"
     
     if request_in.recommendation_id:
         rec = db.query(Recommendation).filter(
             Recommendation.id == request_in.recommendation_id, 
-            Recommendation.user_id == current_user.id
+            Recommendation.user_id == current_user["id"]
         ).first()
         if rec:
             target_role = rec.job_title
@@ -42,7 +44,7 @@ async def generate_roadmap(
                 pass
                 
     if not missing_list:
-        latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user.id).order_by(SkillGap.analyzed_at.desc()).first()
+        latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user["id"]).order_by(SkillGap.analyzed_at.desc()).first()
         if latest_gap:
             try:
                 m_skills = json.loads(latest_gap.missing_skills) if isinstance(latest_gap.missing_skills, str) else latest_gap.missing_skills
@@ -68,17 +70,16 @@ async def generate_roadmap(
                     if payload.get("event") == "complete":
                         result = payload.get("result", {})
                         
-                        # Create and save Roadmap DB entry using a thread-local background session
-                        with SessionLocal() as session:
-                            db_roadmap = Roadmap(
-                                user_id=current_user.id,
-                                duration_weeks=request_in.duration_weeks,
-                                weekly_goals=json.dumps(result.get("weekly_goals", [])),
-                                tasks_data=json.dumps(result.get("tasks_data", [])),
-                                progress_percentage=0.0
-                            )
-                            session.add(db_roadmap)
-                            session.commit()
+                        mongo_db = get_mongo_db()
+                        db_roadmap = {
+                            "user_id": current_user["id"],
+                            "duration_weeks": request_in.duration_weeks,
+                            "weekly_goals": result.get("weekly_goals", []),
+                            "tasks_data": result.get("tasks_data", []),
+                            "progress_percentage": 0.0,
+                            "created_at": datetime.now(timezone.utc)
+                        }
+                        mongo_db.roadmaps.insert_one(db_roadmap)
                 except Exception as e:
                     print(f"Error saving roadmap: {e}")
             yield message
@@ -88,43 +89,33 @@ async def generate_roadmap(
 
 @router.get("/latest")
 def get_latest_roadmap(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Fetches the latest learning roadmap for the authenticated user.
     """
-    roadmap = db.query(Roadmap).filter(Roadmap.user_id == current_user.id).order_by(Roadmap.created_at.desc()).first()
+    roadmap = db.roadmaps.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
     if not roadmap:
         raise HTTPException(status_code=404, detail="No active roadmap found.")
         
-    w_goals = json.loads(roadmap.weekly_goals) if isinstance(roadmap.weekly_goals, str) else roadmap.weekly_goals
-    t_data = json.loads(roadmap.tasks_data) if isinstance(roadmap.tasks_data, str) else roadmap.tasks_data
-
-    return {
-        "id": roadmap.id,
-        "user_id": roadmap.user_id,
-        "duration_weeks": roadmap.duration_weeks,
-        "weekly_goals": w_goals,
-        "tasks_data": t_data,
-        "progress_percentage": roadmap.progress_percentage,
-        "created_at": roadmap.created_at
-    }
+    roadmap["id"] = str(roadmap["_id"])
+    return roadmap
 
 @router.post("/task-toggle")
 def toggle_roadmap_task(
     payload: TaskUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Toggles completion of a specific task inside weekly syllabus and updates progress.
     """
-    roadmap = db.query(Roadmap).filter(Roadmap.user_id == current_user.id).order_by(Roadmap.created_at.desc()).first()
+    roadmap = db.roadmaps.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
     if not roadmap:
         raise HTTPException(status_code=404, detail="No active roadmap found to toggle task.")
         
-    t_data = json.loads(roadmap.tasks_data) if isinstance(roadmap.tasks_data, str) else roadmap.tasks_data
+    t_data = roadmap.get("tasks_data", [])
     
     # Toggle target task
     try:
@@ -151,14 +142,10 @@ def toggle_roadmap_task(
                 
     progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
     
-    roadmap.tasks_data = json.dumps(t_data)
-    roadmap.progress_percentage = round(progress, 1)
-    
-    db.add(roadmap)
-    db.commit()
-    db.refresh(roadmap)
+    progress = round(progress, 1)
+    db.roadmaps.update_one({"_id": roadmap["_id"]}, {"$set": {"tasks_data": t_data, "progress_percentage": progress}})
     
     return {
-        "progress_percentage": roadmap.progress_percentage,
+        "progress_percentage": progress,
         "tasks_data": t_data
     }

@@ -1,33 +1,25 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.database import Base, engine
+
 from app.routers import auth, resume, skill_gap, roadmap, interview, document, recommendation, chat, dashboard
 
-# Initialize Database tables
-Base.metadata.create_all(bind=engine)
 
-# Self-healing migration checks for column updates
-from sqlalchemy import inspect, text
-try:
-    inspector = inspect(engine)
-    if inspector.has_table("recommendations"):
-        columns = [col['name'] for col in inspector.get_columns('recommendations')]
-        with engine.begin() as conn:
-            if 'job_description' not in columns:
-                conn.execute(text("ALTER TABLE recommendations ADD COLUMN job_description TEXT"))
-                print("Self-healing DB: Added job_description column to recommendations table.")
-            if 'apply_url' not in columns:
-                conn.execute(text("ALTER TABLE recommendations ADD COLUMN apply_url VARCHAR"))
-                print("Self-healing DB: Added apply_url column to recommendations table.")
-except Exception as e:
-    print(f"Database migration check warning: {e}")
+
+
+from app.core.database import get_mongo_db
+import pymongo
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Enterprise Multi-Agent Career Copilot Platform",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+def startup_db_client():
+    db = get_mongo_db()
+    db.users.create_index([("email", pymongo.ASCENDING)], unique=True)
 
 # CORS configuration
 origins = [

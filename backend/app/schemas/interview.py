@@ -11,8 +11,8 @@ class InterviewAnswerRequest(BaseModel):
     user_answer: str
 
 class InterviewResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     session_type: str
     question_answers: Optional[List[Dict[str, Any]]] = None
     overall_score: float

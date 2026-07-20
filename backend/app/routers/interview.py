@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from bson import ObjectId
+from app.core.database import get_mongo_db
 import json
 
-from app.core.database import get_db, SessionLocal
+from app.core.database import get_db, get_mongo_db
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.models.interview import Interview
@@ -17,22 +19,24 @@ router = APIRouter(prefix="/interview", tags=["interview"])
 @router.post("/start")
 async def start_interview(
     request_in: InterviewStartRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Spawns an Interview Coach Agent stream. Generates questions and saves
     the active session in PostgreSQL on stream completion.
     """
-    target_role = current_user.target_role or "Software Engineer"
-    target_company = current_user.target_company or "IBM"
+    target_role = current_user.get("target_role") or "Software Engineer"
+    target_company = current_user.get("target_company") or "IBM"
     job_desc = ""
 
     if request_in.recommendation_id:
-        rec = db.query(Recommendation).filter(
-            Recommendation.id == request_in.recommendation_id, 
-            Recommendation.user_id == current_user.id
-        ).first()
+        try: rec_id = ObjectId(request_in.recommendation_id)
+        except: rec_id = request_in.recommendation_id
+        rec = db.recommendations.find_one({
+            "_id": rec_id, 
+            "user_id": current_user["id"]
+        })
         if rec:
             target_role = rec.job_title
             target_company = rec.company
@@ -65,21 +69,20 @@ async def start_interview(
                                 "score": 0.0
                             })
                         
-                        # Create and save Interview record using a thread-local background session
-                        with SessionLocal() as session:
-                            db_interview = Interview(
-                                user_id=current_user.id,
-                                session_type=request_in.session_type,
-                                question_answers=json.dumps(qa_list),
-                                overall_score=0.0,
-                                performance_metrics=json.dumps({
-                                    "accuracy": 0.0,
-                                    "confidence": 0.0,
-                                    "communication": 0.0
-                                })
-                            )
-                            session.add(db_interview)
-                            session.commit()
+                        mongo_db = get_mongo_db()
+                        db_interview = {
+                            "user_id": current_user["id"],
+                            "session_type": request_in.session_type,
+                            "question_answers": qa_list,
+                            "overall_score": 0.0,
+                            "performance_metrics": {
+                                "accuracy": 0.0,
+                                "confidence": 0.0,
+                                "communication": 0.0
+                            },
+                            "created_at": datetime.now(timezone.utc)
+                        }
+                        mongo_db.interviews.insert_one(db_interview)
                 except Exception as e:
                     print(f"Error creating interview: {e}")
             yield message
@@ -88,44 +91,34 @@ async def start_interview(
 
 @router.get("/latest")
 def get_latest_interview(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Fetches the latest mock interview session for the user.
     """
-    interview = db.query(Interview).filter(Interview.user_id == current_user.id).order_by(Interview.created_at.desc()).first()
+    interview = db.interviews.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
     if not interview:
         raise HTTPException(status_code=404, detail="No mock interview session found.")
         
-    qa = json.loads(interview.question_answers) if isinstance(interview.question_answers, str) else interview.question_answers
-    metrics = json.loads(interview.performance_metrics) if isinstance(interview.performance_metrics, str) else interview.performance_metrics
-
-    return {
-        "id": interview.id,
-        "user_id": interview.user_id,
-        "session_type": interview.session_type,
-        "question_answers": qa,
-        "overall_score": interview.overall_score,
-        "performance_metrics": metrics,
-        "created_at": interview.created_at
-    }
+    interview["id"] = str(interview["_id"])
+    return interview
 
 @router.post("/submit-answer")
 async def submit_answer(
     payload: InterviewAnswerRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Evaluates a user response against accuracy, confidence, communication,
     and STAR criteria, returning detailed critique.
     """
-    interview = db.query(Interview).filter(Interview.user_id == current_user.id).order_by(Interview.created_at.desc()).first()
+    interview = db.interviews.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
     if not interview:
         raise HTTPException(status_code=404, detail="No active interview session found.")
         
-    qa = json.loads(interview.question_answers) if isinstance(interview.question_answers, str) else interview.question_answers
+    qa = interview.get("question_answers", [])
     
     if payload.question_index < 0 or payload.question_index >= len(qa):
         raise HTTPException(status_code=400, detail="Invalid question index.")
@@ -187,16 +180,18 @@ async def submit_answer(
         "communication": eval_data.get("communication", 70.0)
     }
 
-    interview.question_answers = json.dumps(qa)
-    interview.overall_score = round(overall_score, 1)
-    interview.performance_metrics = json.dumps(perf_metrics)
-    
-    db.add(interview)
-    db.commit()
-    db.refresh(interview)
+    overall_score = round(overall_score, 1)
+    db.interviews.update_one(
+        {"_id": interview["_id"]},
+        {"$set": {
+            "question_answers": qa,
+            "overall_score": overall_score,
+            "performance_metrics": perf_metrics
+        }}
+    )
     
     return {
-        "overall_score": interview.overall_score,
+        "overall_score": overall_score,
         "performance_metrics": perf_metrics,
         "question_answers": qa
     }

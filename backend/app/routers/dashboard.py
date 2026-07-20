@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from bson import ObjectId
+from app.core.database import get_mongo_db
 import json
 
 from app.core.database import get_db
@@ -14,24 +16,24 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/summary")
 def get_dashboard_summary(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Compiles circular scoring gauges, upcoming checklist targets, recent activities,
     and calculates the Job Readiness Index.
     """
     # 1. Fetch latest data objects
-    latest_resume = db.query(Resume).filter(Resume.user_id == current_user.id).order_by(Resume.analyzed_at.desc()).first()
-    latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user.id).order_by(SkillGap.analyzed_at.desc()).first()
-    latest_roadmap = db.query(Roadmap).filter(Roadmap.user_id == current_user.id).order_by(Roadmap.created_at.desc()).first()
-    latest_interview = db.query(Interview).filter(Interview.user_id == current_user.id).order_by(Interview.created_at.desc()).first()
+    latest_resume = db.resumes.find_one({"user_id": current_user["id"]}, sort=[("analyzed_at", -1)])
+    latest_gap = db.skill_gaps.find_one({"user_id": current_user["id"]}, sort=[("analyzed_at", -1)])
+    latest_roadmap = db.roadmaps.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
+    latest_interview = db.interviews.find_one({"user_id": current_user["id"]}, sort=[("created_at", -1)])
 
     # 2. Extract scores
-    ats_score = latest_resume.ats_score if latest_resume else 0
-    resume_score = latest_resume.ats_score if latest_resume else 0  # fallback
-    interview_score = int(latest_interview.overall_score * 10) if latest_interview else 0
-    learning_progress = int(latest_roadmap.progress_percentage) if latest_roadmap else 0
+    ats_score = latest_resume.get("ats_score", 0) if latest_resume else 0
+    resume_score = latest_resume.get("ats_score", 0) if latest_resume else 0  # fallback
+    interview_score = int(latest_interview.get("overall_score", 0) * 10) if latest_interview else 0
+    learning_progress = int(latest_roadmap.get("progress_percentage", 0)) if latest_roadmap else 0
 
     # 3. Calculate intelligent composite Job Readiness Score
     # Resume: 35%, Learning: 30%, Interview: 35%
@@ -54,7 +56,7 @@ def get_dashboard_summary(
     upcoming = []
     if latest_roadmap:
         try:
-            tasks_data = json.loads(latest_roadmap.tasks_data) if isinstance(latest_roadmap.tasks_data, str) else latest_roadmap.tasks_data
+            tasks_data = json.loads(latest_roadmap.get("tasks_data")) if isinstance(latest_roadmap.get("tasks_data"), str) else latest_roadmap.get("tasks_data")
             for week in tasks_data:
                 for task in week.get("tasks", []):
                     if not task.get("completed", False):
@@ -76,25 +78,25 @@ def get_dashboard_summary(
         activities.append({
             "title": "Uploaded Portfolio Resume",
             "desc": f"Analyzed ATS compatibility: {ats_score}%",
-            "time": latest_resume.analyzed_at.strftime("%Y-%m-%d")
+            "time": latest_resume.get("analyzed_at", datetime.now(timezone.utc)).strftime("%Y-%m-%d")
         })
     if latest_gap:
         activities.append({
             "title": "Audited Industry Skill Gaps",
-            "desc": f"Mapped targets for {latest_gap.target_role}",
-            "time": latest_gap.analyzed_at.strftime("%Y-%m-%d")
+            "desc": f"Mapped targets for {latest_gap.get("target_role")}",
+            "time": latest_gap.get("analyzed_at", datetime.now(timezone.utc)).strftime("%Y-%m-%d")
         })
     if latest_roadmap:
         activities.append({
             "title": "Initialized Study Roadmap",
-            "desc": f"Duration: {latest_roadmap.duration_weeks} weeks",
-            "time": latest_roadmap.created_at.strftime("%Y-%m-%d")
+            "desc": f"Duration: {latest_roadmap.get("duration_weeks")} weeks",
+            "time": latest_roadmap.get("created_at", datetime.now(timezone.utc)).strftime("%Y-%m-%d")
         })
     if latest_interview:
         activities.append({
             "title": "Conducted Mock Interview Session",
-            "desc": f"Score achieved: {latest_interview.overall_score}/10",
-            "time": latest_interview.created_at.strftime("%Y-%m-%d")
+            "desc": f"Score achieved: {latest_interview.get("overall_score", 0)}/10",
+            "time": latest_interview.get("created_at", datetime.now(timezone.utc)).strftime("%Y-%m-%d")
         })
 
     # Default activities if empty
@@ -109,7 +111,7 @@ def get_dashboard_summary(
     missing_count = 0
     if latest_gap:
         try:
-            m_skills = json.loads(latest_gap.missing_skills) if isinstance(latest_gap.missing_skills, str) else latest_gap.missing_skills
+            m_skills = json.loads(latest_gap.get("missing_skills", [])) if isinstance(latest_gap.get("missing_skills", []), str) else latest_gap.get("missing_skills", [])
             missing_count = len(m_skills) if m_skills else 0
         except Exception:
             pass

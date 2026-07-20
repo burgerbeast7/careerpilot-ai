@@ -8,8 +8,8 @@ class DocumentCreate(BaseModel):
     content_text: str
 
 class DocumentResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     doc_type: str
     title: str
     content_text: str

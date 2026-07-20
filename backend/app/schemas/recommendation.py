@@ -6,8 +6,8 @@ class RecommendationStatusUpdate(BaseModel):
     status: str  # "Recommended", "Applied", "Interviewing", "Offered", "Rejected"
 
 class RecommendationResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     job_title: str
     company: str
     match_score: str

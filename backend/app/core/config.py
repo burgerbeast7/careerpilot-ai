@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     
-    # Database
-    # Default to SQLite for easy local execution. Can be overridden with PostgreSQL URL.
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./careerpilot.db")
+    # Database (MongoDB)
+    MONGODB_URI: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "careerpilot")
     
     # AI Config
     # Supports: "mock", "openai", "gemini", "watsonx", "groq"

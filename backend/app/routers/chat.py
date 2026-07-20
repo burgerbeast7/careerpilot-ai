@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Dict, Any
 import asyncio
@@ -23,7 +22,7 @@ class ChatPayload(BaseModel):
 @router.post("/query")
 async def chat_assistant(
     payload: ChatPayload,
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Streams Career Assistant answers using word-by-word SSE buffers.
@@ -31,14 +30,14 @@ async def chat_assistant(
     last_msg = payload.messages[-1].content if payload.messages else "Hello"
     
     # 1. Build contextual system guidelines
-    role = current_user.target_role or "Software Engineer"
-    company = current_user.target_company or "IBM Research"
+    role = current_user.get("target_role") or "Software Engineer"
+    company = current_user.get("target_company") or "IBM Research"
     
     sys_prompt = f"""
     You are CareerPilot AI, an elite career development companion.
-    The student is '{current_user.full_name}'.
+    The student is '{current_user.get("full_name")}'.
     Target Career: '{role}' at '{company}'.
-    Experience level: '{current_user.experience_level or "Internship"}'.
+    Experience level: '{current_user.get("experience_level") or "Internship"}'.
     
     Provide concise, highly actionable guidance in Markdown format. Use bold tags, lists, and bullet points.
     Keep answers under 3 paragraphs where possible.

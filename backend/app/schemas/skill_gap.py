@@ -8,8 +8,8 @@ class SkillGapRequest(BaseModel):
     current_skills: List[str]
 
 class SkillGapResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     target_role: str
     target_company: Optional[str] = None
     current_skills: Optional[List[str]] = None

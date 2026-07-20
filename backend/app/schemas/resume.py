@@ -3,8 +3,8 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 class ResumeResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     file_name: str
     file_path: str
     extracted_text: Optional[str] = None

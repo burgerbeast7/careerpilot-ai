@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from bson import ObjectId
+from app.core.database import get_mongo_db
 import json
 
 from app.core.database import get_db
@@ -13,15 +15,15 @@ router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 @router.post("/recommend", response_model=list[RecommendationResponse])
 async def generate_recommendations(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Spawns the Recommendation Agent to identify 3 internships tailored to
     the user's profile, including job descriptions and apply links.
     """
-    role = current_user.target_role or "Software Engineer"
-    company = current_user.target_company or "IBM Research"
+    role = current_user.get("target_role") or "Software Engineer"
+    company = current_user.get("target_company") or "IBM Research"
     
     prompt = f"""
     Recommend 3 realistic internship opportunities for a student targeting role '{role}' at or similar to '{company}'.
@@ -77,7 +79,7 @@ async def generate_recommendations(
     db_recs = []
     for rec in recs_list:
         db_rec = Recommendation(
-            user_id=current_user.id,
+            user_id=current_user["id"],
             job_title=rec.get("job_title"),
             company=rec.get("company"),
             match_score=rec.get("match_score", "80%"),
@@ -115,13 +117,13 @@ async def generate_recommendations(
 
 @router.get("/list", response_model=list[RecommendationResponse])
 def list_recommendations(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Lists all job recommendations for the user.
     """
-    recs = db.query(Recommendation).filter(Recommendation.user_id == current_user.id).order_by(Recommendation.created_at.desc()).all()
+    recs = db.query(Recommendation).filter(Recommendation.user_id == current_user["id"]).order_by(Recommendation.created_at.desc()).all()
     
     response_items = []
     for rec in recs:
@@ -145,13 +147,13 @@ def list_recommendations(
 def update_recommendation_status(
     payload: RecommendationStatusUpdate,
     recommendation_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Updates the Kanban application status of a recommended opportunity.
     """
-    rec = db.query(Recommendation).filter(Recommendation.id == recommendation_id, Recommendation.user_id == current_user.id).first()
+    rec = db.query(Recommendation).filter(Recommendation.id == recommendation_id, Recommendation.user_id == current_user["id"]).first()
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation item not found.")
         

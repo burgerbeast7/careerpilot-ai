@@ -20,7 +20,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
 
 class UserResponse(UserBase):
-    id: int
+    id: str
     created_at: datetime
 
     class Config:
