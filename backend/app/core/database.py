@@ -8,6 +8,10 @@ from urllib.parse import quote_plus, unquote
 def get_safe_db_url(url: str) -> str:
     if not url or url.startswith("sqlite"):
         return url
+        
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+        
     try:
         if "@" in url:
             # Split into scheme+user+pass and host+db
