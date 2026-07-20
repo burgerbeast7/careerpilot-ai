@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
+from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
