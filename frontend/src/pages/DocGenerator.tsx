@@ -83,18 +83,24 @@ export const DocGenerator: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!selectedDoc) return;
-    // Direct link to backend file download endpoint
-    const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/documents/download/${selectedDoc.id}`;
-    
-    // Trigger download
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${selectedDoc.title.replace(/\s+/g, '_')}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await api.get(`/documents/download/${selectedDoc.id}`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${selectedDoc.title.replace(/\s+/g, '_')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download PDF document:", err);
+    }
   };
 
   return (
