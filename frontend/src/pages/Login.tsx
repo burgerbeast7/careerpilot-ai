@@ -4,6 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Bot, Mail, Lock, Loader2 } from 'lucide-react';
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 export const Login: React.FC = () => {
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();

@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Bot, Mail, Key, Lock, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 export const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [code, setCode] = useState('');
