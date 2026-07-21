@@ -30,25 +30,31 @@ async def generate_roadmap(
     target_role = current_user.get("target_role") or "Software Engineer"
     
     if request_in.recommendation_id:
-        rec = db.query(Recommendation).filter(
-            Recommendation.id == request_in.recommendation_id, 
-            Recommendation.user_id == current_user["id"]
-        ).first()
+        try: rec_id = ObjectId(request_in.recommendation_id)
+        except: rec_id = request_in.recommendation_id
+        rec = db.recommendations.find_one({
+            "_id": rec_id, 
+            "user_id": current_user["id"]
+        })
         if rec:
-            target_role = rec.job_title
+            target_role = rec.get("job_title") or "Software Engineer"
             try:
-                req_skills = json.loads(rec.required_skills) if isinstance(rec.required_skills, str) else rec.required_skills
+                req_skills = rec.get("required_skills")
                 if req_skills:
+                    if isinstance(req_skills, str):
+                        req_skills = json.loads(req_skills)
                     missing_list = list(req_skills)
             except Exception:
                 pass
                 
     if not missing_list:
-        latest_gap = db.query(SkillGap).filter(SkillGap.user_id == current_user["id"]).order_by(SkillGap.analyzed_at.desc()).first()
+        latest_gap = db.skill_gaps.find_one({"user_id": current_user["id"]}, sort=[("analyzed_at", -1)])
         if latest_gap:
             try:
-                m_skills = json.loads(latest_gap.missing_skills) if isinstance(latest_gap.missing_skills, str) else latest_gap.missing_skills
+                m_skills = latest_gap.get("missing_skills")
                 if m_skills:
+                    if isinstance(m_skills, str):
+                        m_skills = json.loads(m_skills)
                     missing_list = list(m_skills.keys())
             except Exception:
                 pass

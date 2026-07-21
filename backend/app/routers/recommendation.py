@@ -78,39 +78,37 @@ async def generate_recommendations(
         
     db_recs = []
     for rec in recs_list:
-        db_rec = Recommendation(
-            user_id=current_user["id"],
-            job_title=rec.get("job_title"),
-            company=rec.get("company"),
-            match_score=rec.get("match_score", "80%"),
-            match_explanation=rec.get("match_explanation"),
-            required_skills=json.dumps(rec.get("required_skills", [])),
-            job_description=rec.get("job_description", "No detailed description provided."),
-            apply_url=rec.get("apply_url", "https://careers.ibm.com/"),
-            status="Recommended"
-        )
-        db.add(db_rec)
+        db_rec = {
+            "user_id": current_user["id"],
+            "job_title": rec.get("job_title"),
+            "company": rec.get("company"),
+            "match_score": rec.get("match_score", "80%"),
+            "match_explanation": rec.get("match_explanation"),
+            "required_skills": rec.get("required_skills", []),
+            "job_description": rec.get("job_description", "No detailed description provided."),
+            "apply_url": rec.get("apply_url", "https://careers.ibm.com/"),
+            "status": "Recommended",
+            "created_at": datetime.now(timezone.utc)
+        }
+        res = db.recommendations.insert_one(db_rec)
+        db_rec["_id"] = res.inserted_id
+        db_rec["id"] = str(res.inserted_id)
         db_recs.append(db_rec)
-        
-    db.commit()
-    for db_rec in db_recs:
-        db.refresh(db_rec)
         
     response_items = []
     for rec in db_recs:
-        req_skills = json.loads(rec.required_skills) if isinstance(rec.required_skills, str) else rec.required_skills
         response_items.append({
-            "id": rec.id,
-            "user_id": rec.user_id,
-            "job_title": rec.job_title,
-            "company": rec.company,
-            "match_score": rec.match_score,
-            "match_explanation": rec.match_explanation,
-            "required_skills": req_skills,
-            "status": rec.status,
-            "job_description": rec.job_description,
-            "apply_url": rec.apply_url,
-            "created_at": rec.created_at
+            "id": rec["id"],
+            "user_id": rec["user_id"],
+            "job_title": rec["job_title"],
+            "company": rec["company"],
+            "match_score": rec["match_score"],
+            "match_explanation": rec["match_explanation"],
+            "required_skills": rec["required_skills"],
+            "status": rec["status"],
+            "job_description": rec["job_description"],
+            "apply_url": rec["apply_url"],
+            "created_at": rec["created_at"]
         })
         
     return response_items
@@ -123,56 +121,66 @@ def list_recommendations(
     """
     Lists all job recommendations for the user.
     """
-    recs = db.query(Recommendation).filter(Recommendation.user_id == current_user["id"]).order_by(Recommendation.created_at.desc()).all()
+    recs = list(db.recommendations.find({"user_id": current_user["id"]}).sort("created_at", -1))
     
     response_items = []
     for rec in recs:
-        req_skills = json.loads(rec.required_skills) if isinstance(rec.required_skills, str) else rec.required_skills
+        rec["id"] = str(rec["_id"])
+        req_skills = rec.get("required_skills", [])
+        if isinstance(req_skills, str):
+            try: req_skills = json.loads(req_skills)
+            except: req_skills = []
         response_items.append({
-            "id": rec.id,
-            "user_id": rec.user_id,
-            "job_title": rec.job_title,
-            "company": rec.company,
-            "match_score": rec.match_score,
-            "match_explanation": rec.match_explanation,
+            "id": rec["id"],
+            "user_id": rec["user_id"],
+            "job_title": rec["job_title"],
+            "company": rec["company"],
+            "match_score": rec["match_score"],
+            "match_explanation": rec["match_explanation"],
             "required_skills": req_skills,
-            "status": rec.status,
-            "job_description": rec.job_description,
-            "apply_url": rec.apply_url,
-            "created_at": rec.created_at
+            "status": rec["status"],
+            "job_description": rec["job_description"],
+            "apply_url": rec["apply_url"],
+            "created_at": rec.get("created_at") or datetime.now(timezone.utc)
         })
     return response_items
 
 @router.post("/update-status", response_model=RecommendationResponse)
 def update_recommendation_status(
     payload: RecommendationStatusUpdate,
-    recommendation_id: int,
+    recommendation_id: str,
     db = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
     Updates the Kanban application status of a recommended opportunity.
     """
-    rec = db.query(Recommendation).filter(Recommendation.id == recommendation_id, Recommendation.user_id == current_user["id"]).first()
+    try: r_id = ObjectId(recommendation_id)
+    except: r_id = recommendation_id
+    rec = db.recommendations.find_one({"_id": r_id, "user_id": current_user["id"]})
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation item not found.")
         
-    rec.status = payload.status
-    db.add(rec)
-    db.commit()
-    db.refresh(rec)
-    
-    req_skills = json.loads(rec.required_skills) if isinstance(rec.required_skills, str) else rec.required_skills
+    db.recommendations.update_one(
+        {"_id": r_id},
+        {"$set": {"status": payload.status}}
+    )
+    rec["status"] = payload.status
+    rec["id"] = str(rec["_id"])
+    req_skills = rec.get("required_skills", [])
+    if isinstance(req_skills, str):
+        try: req_skills = json.loads(req_skills)
+        except: req_skills = []
     return {
-        "id": rec.id,
-        "user_id": rec.user_id,
-        "job_title": rec.job_title,
-        "company": rec.company,
-        "match_score": rec.match_score,
-        "match_explanation": rec.match_explanation,
+        "id": rec["id"],
+        "user_id": rec["user_id"],
+        "job_title": rec["job_title"],
+        "company": rec["company"],
+        "match_score": rec["match_score"],
+        "match_explanation": rec["match_explanation"],
         "required_skills": req_skills,
-        "status": rec.status,
-        "job_description": rec.job_description,
-        "apply_url": rec.apply_url,
-        "created_at": rec.created_at
+        "status": rec["status"],
+        "job_description": rec["job_description"],
+        "apply_url": rec["apply_url"],
+        "created_at": rec.get("created_at") or datetime.now(timezone.utc)
     }
